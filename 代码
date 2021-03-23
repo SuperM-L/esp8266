@@ -1,0 +1,114 @@
+#define BLINKER_PRINT Serial
+#define BLINKER_WIFI
+#define BLINKER_MIOT_OUTLET
+
+#include <Blinker.h>
+#include <Arduino.h>
+#include <IRrecv.h>
+#include <IRremoteESP8266.h>
+#include <IRutils.h>
+#include <Servo.h>
+
+char auth[] = "**********";//换成自己的key吧
+char ssid[] = "**********";//换成自己的wifi吧
+char pswd[] = "**********";//换成自己的wifi密码吧
+
+// 定义引脚
+
+const int SERVO1 = 16;  // 舵机1  D0  可以自己设置具体百度esp8266的针脚对应的数字
+const int SERVO2 = 5;  // 舵机2  D1
+int value0 = 90;//记录滑条值
+int maxa = 150;//最大角度（左转角度）
+int mina = 20;//最小角度（右转角度）
+int avga = 90;//中间角度（不偏转角度）
+
+
+Servo myservo1;//关灯舵机
+Servo myservo2;//开灯舵机
+Servo myservo0;//中间量
+
+
+// 新建组件对象
+BlinkerButton btnTurn("btnturn");//开关，括号中的双引号起来的是手机app中组件的名字，下同
+BlinkerSlider ranPer("ran");//滑杆
+BlinkerButton btnc("btnc");//一个按钮，用来测试用的也可以借鉴（之后介绍用处）
+
+// 小爱语音控制
+void miotPowerState(const String & state)
+{
+    BLINKER_LOG("need set power state: ", state);
+
+    if (state == BLINKER_CMD_ON) {
+        BlinkerMIOT.powerState("on");
+        BlinkerMIOT.print();
+        btnTurn_callback("on");//（调用函数，传入on开灯）
+    }
+    else if (state == BLINKER_CMD_OFF) {
+        BlinkerMIOT.powerState("off");
+        BlinkerMIOT.print();
+        btnTurn_callback("off");//（调用函数，传入off关灯）
+    }
+}
+void doServo(Servo myservo){//控制舵机的函数
+        myservo.write(maxa);//操作左边的开关
+        delay(1000);//延时1秒
+        myservo.write(mina);//操作右边的开关
+        delay(1000);//延时1秒
+}
+
+void btnc_callback(const String & state) {
+  if(state == "tap"){//解释一下这里是两个东西配合使用，一个滑竿，一个按钮。滑杆得出一个值，
+    maxa = value0;  //然后用按钮把这个值设置给舵机的旋转角度，可以用来测试或者纠正误差
+  }//这里是点击按钮把滑杆的值设置给左偏角度，长按按钮设置给右偏转角度
+  else{
+    mina = value0;
+    }
+  }
+void btnTurn_callback(const String & state) {//关灯舵机操作
+    BLINKER_LOG("get button state: ", state);
+    if(state == "on"){//判断开关，
+      myservo0 = myservo2;//执行开灯时，赋给中间舵机量
+      btnTurn.print("on");
+    }
+    else{
+      myservo0 = myservo1;//关灯
+      btnTurn.print("off");
+      }
+    doServo(myservo0);//用中间舵机执行操作
+    myservo0.write(avga);//记得复原舵机偏转状态，不然会一直按着开关的
+}
+void ranPer_callback(int32_t value){//滑杆值获取
+    BLINKER_LOG("get ran state: ", value);
+    value0 = value;
+}
+
+// 如果未绑定的组件被触发，则会执行其中内容
+void dataRead(const String & data)
+{
+    BLINKER_LOG("Blinker readString: ", data);
+}
+
+void setup() {
+    // 初始化串口
+    Serial.begin(115200);
+
+    #if defined(BLINKER_PRINT)
+        BLINKER_DEBUG.stream(BLINKER_PRINT);
+    #endif
+
+    
+    myservo1.attach(SERVO1);//绑定舵机到相应针脚上
+    myservo2.attach(SERVO2);
+    
+    // 初始化blinker
+    Blinker.begin(auth, ssid, pswd);
+    Blinker.attachData(dataRead);
+    BlinkerMIOT.attachPowerState(miotPowerState);
+    btnTurn.attach(btnTurn_callback);//按钮滑杆等绑定他们的执行函数
+    ranPer.attach(ranPer_callback);
+    btnc.attach(btnc_callback);
+}
+
+void loop() {
+    Blinker.run();//循环监听
+}
