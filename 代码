@@ -27,7 +27,7 @@ Servo myservo0;//中间量
 
 // 新建组件对象
 BlinkerButton btnTurn("btnturn");//开关，括号中的双引号起来的是手机app中组件的名字，下同
-BlinkerNumber ranPer("ran");//数据条
+BlinkerSlider ranPer("ran");//滑动条
 
 
 // 小爱语音控制
